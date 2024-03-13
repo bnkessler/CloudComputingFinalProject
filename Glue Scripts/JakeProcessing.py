@@ -29,17 +29,19 @@ def save_plot_to_s3(plot, bucket_name, file_name):
     with open(file_name, "rb") as data:
         s3.upload_fileobj(data, bucket_name, file_name)
         
-'bttj-final-s3', 'api-call/PlayerStats.csv'
+
 #######Put csvs here
-base = read_csv_from_s3('bttj-final-s3', 'api-call/player_stats_jake.csv')
-player_stats = read_csv_from_s3('bttj-final-s3', 'api-call/diff_jake.csv')
+base = read_csv_from_s3('bttj-final-s3', 'api-call/diff_jake.csv')
+player_stats = read_csv_from_s3('bttj-final-s3', 'api-call/player_stats_jake.csv')
 #######
 
 base = base.dropna()
 base = base[['Player_id', 'Season', 'REB', 'AST', 'STL', 'BLK', 'TOV', 'PF', 'PTS', 'PLUS_MINUS']]
 base = base.reset_index().drop(['index'], axis=1)
 
-player_stats_grouped = player_stats.groupby(['PLAYER_ID', 'SEASON_ID']).mean().reset_index()
+player_stats[["PLAYER_ID"]] = player_stats[["PLAYER_ID"]].astype(int)
+player_stats[["PLAYER_AGE", "GP", "GS", "MIN", "FGM", "FGA", "FG_PCT", "FG3M", "FG3A", "FG3_PCT", "FTM", "FTA", "FT_PCT", "OREB", "DREB", "REB", "AST", "STL", "BLK", "TOV", "PF", "PTS"]] = player_stats[["PLAYER_AGE", "GP", "GS", "MIN", "FGM", "FGA", "FG_PCT", "FG3M", "FG3A", "FG3_PCT", "FTM", "FTA", "FT_PCT", "OREB", "DREB", "REB", "AST", "STL", "BLK", "TOV", "PF", "PTS"]].astype(float)
+player_stats_grouped = player_stats.groupby(['PLAYER_ID', 'SEASON_ID']).mean(numeric_only=True).reset_index()
 
 high_min = player_stats_grouped[player_stats_grouped['MIN'] >= 24]
 
@@ -63,7 +65,7 @@ merged_old = merged[merged['PLAYER_AGE'] > 25]
 
 merged = merged.drop(['PLAYER_AGE'], axis=1)
 
-by_year = merged.groupby('Season').mean().reset_index()
+by_year = merged.groupby('Season').mean(numeric_only=True).reset_index()
 
 by_year = by_year.drop(['PF', 'PLUS_MINUS'], axis = 1)
 
@@ -71,7 +73,7 @@ year_melted = pd.melt(by_year, id_vars='Season', var_name='variable')
 
 year_melted['variable'] = year_melted['variable'].replace({'AST': 'ASSISTS', 'PTS': 'POINTS', 'STL': 'STEALS', 'BLK': 'BLOCKS', 'PLUS_MINUS': 'PLUS MINUS', 'REB': 'REBOUNDS', 'TOV': 'TURNOVERS'})
 
-by_year_young = merged_young.groupby('Season').mean().reset_index()
+by_year_young = merged_young.groupby('Season').mean(numeric_only=True).reset_index()
 
 by_year_young = by_year_young.drop(['PF', 'PLUS_MINUS','PLAYER_AGE'], axis = 1)
 
@@ -79,7 +81,7 @@ year_melted_young = pd.melt(by_year_young, id_vars='Season', var_name='variable'
 
 year_melted_young['variable'] = year_melted_young['variable'].replace({'AST': 'ASSISTS', 'PTS': 'POINTS', 'STL': 'STEALS', 'BLK': 'BLOCKS', 'PLUS_MINUS': 'PLUS MINUS', 'REB': 'REBOUNDS', 'TOV': 'TURNOVERS'})
 
-by_year_old = merged_old.groupby('Season').mean().reset_index()
+by_year_old = merged_old.groupby('Season').mean(numeric_only=True).reset_index()
 
 by_year_old = by_year_old.drop(['PF', 'PLUS_MINUS','PLAYER_AGE'], axis = 1)
 
@@ -105,13 +107,13 @@ plot1 = (ggplot(combined_df, aes(x='Season', y='value', color='Agroup', group='v
          plot_title=element_text(hjust=0.5),
          axis_text_x=element_text(angle=45)))
          
-save_plot_to_s3(plot1, 'bttj-final-s3', 'api-call/plot1_jake.png')
+save_plot_to_s3(plot1, 'bttj-final-s3', 'plot1_jake.png')
 
-column_means_young = merged_young.drop(['Player_id', 'Season', 'PLAYER_ID', 'PLUS_MINUS', 'other'], axis=1).mean()
+column_means_young = merged_young.drop(['Player_id', 'Season', 'PLAYER_ID', 'PLUS_MINUS', 'other'], axis=1).mean(numeric_only=True)
 
 column_means_young = pd.DataFrame(column_means_young).transpose()
 
-column_means_old =  merged_old.drop(['Player_id', 'Season', 'PLAYER_ID', 'PLUS_MINUS', 'other'], axis=1).mean()
+column_means_old =  merged_old.drop(['Player_id', 'Season', 'PLAYER_ID', 'PLUS_MINUS', 'other'], axis=1).mean(numeric_only=True)
 
 column_means_old = pd.DataFrame(column_means_old).transpose()
 
@@ -125,25 +127,12 @@ column_me = column_me.drop(['PLAYER_AGE', 'TOV'], axis=1)
 
 column_me_long = pd.melt(column_me, id_vars=['Age'], var_name='Statistic', value_name='Mean')
 
-plot = (ggplot(column_me_long, aes(x='Statistic', y='Mean', fill='Age'))
+plot2 = (ggplot(column_me_long, aes(x='Statistic', y='Mean', fill='Age'))
         + geom_bar(stat='identity', position='dodge')
         + labs(x='Statistic', y='Mean Per Min Difference (After Bday - Before Bday)', title='Mean Per Minute Stat Differences')
         + theme(axis_text_x=element_text(rotation=45, hjust=1))) + theme_bw() + theme(figure_size=(8,6))
-
-for i in merged_young.drop(['Player_id',  'Season', 'PLAYER_ID', 'SEASON_ID', 'PLAYER_AGE', 'other', 'PLUS_MINUS'], axis=1).columns:
-    if max(merged_young[i]) - min(merged_young[i]) < 1.5:
-        plot = (ggplot(merged) +
-        aes(x=i)+
-        geom_histogram(binwidth=.01, color='black', fill='orange') +
-        labs(title='Histogram of Difference of ' + i, x='Value', y='Frequency') +
-        theme_bw())
-        print(plot)
-    else:
-        plot = (ggplot(merged) +
-        aes(x=i)+
-        geom_histogram(binwidth=.05, color='black', fill='lightblue') +
-        labs(title='Histogram of Difference of ' + i, x='Value', y='Frequency') +
-        theme_bw())
-        print(plot)
         
-save_plot_to_s3(plot, 'bttj-final-s3', 'api-call/plot_jake.png')
+save_plot_to_s3(plot2, 'bttj-final-s3', 'plot2_jake.png')
+        
+
+
