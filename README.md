@@ -1,4 +1,5 @@
 # CloudComputingFinalProject
 This is the repository for Ben, Tony, Tuukka, and Jake for v2 of the final project.
-There are two main folders, glue scripts and all other scripts.
-Due to issues with the nba_api on AWS, we have two versions of most documents. One version that would work if nba_api worked on AWS and one that works by pulling the api_data from s3, but that required us to upload the data manually.
+In the glue scripts folder, there are two types of documents, processing and api.
+The api script documents are what the code would be if the nba_api worked on AWS while the processing documents are versions that pull directly from s3 without calling the nba_api on AWS.
+This means we had to manually upload the nba_api data to s3 after pulling it locally.
